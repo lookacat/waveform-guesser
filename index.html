@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waveform Guessing Game</title>
+    <style>
+      body {
+        background-color: #121212;
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+
+      h1 {
+        margin-bottom: 20px;
+      }
+
+      h2 {
+        margin: 10px 0;
+        transition: color 0.5s;
+      }
+
+      h3 {
+        margin: 10px 0;
+        color: #fff;
+        font-weight: normal;
+      }
+
+      .level-green {
+        color: #28a745;
+      }
+
+      .level-yellow {
+        color: #ffc107;
+      }
+
+      .level-orange {
+        color: #fd7e14;
+      }
+
+      .level-red {
+        color: #dc3545;
+      }
+
+      button {
+        background-color: #1e1e1e;
+        color: #ffffff;
+        border: 1px solid #444;
+        border-radius: 5px;
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+
+      button:hover {
+        background-color: #333;
+      }
+
+      button.correct {
+        background-color: #28a745;
+      }
+
+      button.incorrect {
+        background-color: #dc3545;
+      }
+
+      button.disabled {
+        background-color: #555;
+        cursor: not-allowed;
+      }
+
+      #result {
+        margin-top: 20px;
+        font-size: 18px;
+      }
+
+      #substep {
+        margin-top: 20px;
+      }
+
+      #substep button {
+        margin: 5px;
+      }
+
+      #confirm {
+        display: none;
+        margin-top: 10px;
+      }
+
+      #volumeControl {
+        margin-top: 30px;
+      }
+
+      .level-up {
+        animation: levelUp 1s ease;
+      }
+
+      @keyframes levelUp {
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.5);
+          opacity: 0.7;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .reset {
+        animation: resetAnim 1.5s ease;
+      }
+
+      @keyframes resetAnim {
+        0% {
+          transform: scale(1);
+          color: #dc3545;
+          opacity: 1;
+        }
+        50% {
+          transform: scale(0.8);
+          color: #555;
+          opacity: 0.5;
+        }
+        100% {
+          transform: scale(1);
+          color: #dc3545;
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Waveform Guessing Game</h1>
+      <h2 id="level" class="level-green">Level 1</h2>
+      <h3 id="waveformResult"></h3>
+      <button id="playSound">Play Sound</button>
+      <button id="replaySound">Replay Sound</button>
+      <div id="buttons">
+        <button id="sine" onclick="handleGuess('sine')">Sine</button>
+        <button id="square" onclick="handleGuess('square')">Square</button>
+        <button id="sawtooth" onclick="handleGuess('sawtooth')">
+          Sawtooth
+        </button>
+        <button id="triangle" onclick="handleGuess('triangle')">
+          Triangle
+        </button>
+        <button id="mixed" onclick="handleGuess('mixed')">Mixed</button>
+      </div>
+      <div id="substep"></div>
+      <button id="confirm" onclick="confirmMixedGuess()">Confirm</button>
+      <p id="result"></p>
+      <div id="volumeControl">
+        <label for="volume">Volume: </label>
+        <input
+          type="range"
+          id="volume"
+          min="0"
+          max="1"
+          step="0.01"
+          value="0.5"
+          oninput="adjustVolume(this.value)"
+        />
+      </div>
+    </div>
+
+    <script>
+      const audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)();
+      const waveforms = ["sine", "square", "sawtooth", "triangle"];
+      let currentWaveform = [];
+      let mixedSelections = [];
+      let level = 10;
+      const masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.5;
+      masterGain.connect(audioContext.destination);
+
+      function generateWaveform() {
+        if (level <= 6) {
+          return [waveforms[Math.floor(Math.random() * waveforms.length)]];
+        } else {
+          const choice = Math.random();
+          if (choice < 0.7) {
+            return [waveforms[Math.floor(Math.random() * waveforms.length)]];
+          } else {
+            const mixedWaveforms = [];
+            while (mixedWaveforms.length < 2) {
+              const waveform =
+                waveforms[Math.floor(Math.random() * waveforms.length)];
+              if (!mixedWaveforms.includes(waveform)) {
+                mixedWaveforms.push(waveform);
+              }
+            }
+            return mixedWaveforms;
+          }
+        }
+      }
+
+      function playSound(waveforms) {
+        const duration = 2;
+        waveforms.forEach((waveform, index) => {
+          const oscillator = audioContext.createOscillator();
+          oscillator.type = waveform;
+          oscillator.frequency.value =
+            440 + (level > 12 ? Math.random() * 100 - 50 : 0);
+          oscillator.detune.value = index * 10;
+          oscillator.connect(masterGain);
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + duration);
+        });
+      }
+
+      function adjustVolume(value) {
+        masterGain.gain.value = value;
+      }
+
+      function updateLevelDisplay() {
+        const levelElement = document.getElementById("level");
+        levelElement.textContent = `Level ${level}`;
+
+        levelElement.classList.remove(
+          "level-green",
+          "level-yellow",
+          "level-orange",
+          "level-red"
+        );
+        if (level <= 6) {
+          levelElement.classList.add("level-green");
+        } else if (level <= 12) {
+          levelElement.classList.add("level-yellow");
+        } else if (level <= 18) {
+          levelElement.classList.add("level-orange");
+        } else {
+          levelElement.classList.add("level-red");
+        }
+      }
+
+      function resetGame() {
+        const levelElement = document.getElementById("level");
+        levelElement.classList.add("reset");
+        document.getElementById("waveformResult").textContent = "";
+        setTimeout(() => {
+          level = 1;
+          updateLevelDisplay();
+          newRound();
+        }, 1500);
+      }
+
+      function newRound() {
+        currentWaveform = generateWaveform();
+        document.getElementById("result").textContent = "";
+        document.getElementById("waveformResult").textContent = "";
+        document.getElementById("substep").innerHTML = "";
+        document.getElementById("confirm").style.display = "none";
+        const buttons = document.querySelectorAll("#buttons button");
+        buttons.forEach((button) => {
+          button.classList.remove("correct", "incorrect");
+        });
+        const playButton = document.getElementById("playSound");
+        playButton.classList.remove("disabled");
+        playButton.disabled = false;
+        mixedSelections = [];
+      }
+
+      function handleGuess(guess) {
+        const buttons = document.querySelectorAll("#buttons button");
+        const result = document.getElementById("result");
+        const waveformResult = document.getElementById("waveformResult");
+        const playButton = document.getElementById("playSound");
+        playButton.classList.add("disabled");
+        playButton.disabled = true;
+
+        if (guess === "mixed") {
+          setupMixedSelection();
+          return;
+        }
+
+        let isCorrect =
+          currentWaveform.includes(guess) && currentWaveform.length === 1;
+
+        buttons.forEach((button) => {
+          if (
+            currentWaveform.includes(button.id) &&
+            currentWaveform.length === 1
+          ) {
+            button.classList.add("correct");
+          } else if (button.id === guess) {
+            button.classList.add("incorrect");
+          }
+        });
+
+        waveformResult.textContent =
+          currentWaveform.length === 1
+            ? currentWaveform[0]
+            : `Mixed: ${currentWaveform.join(", ")}`;
+
+        if (isCorrect) {
+          result.textContent = "Correct!";
+          level++;
+          const levelElement = document.getElementById("level");
+          levelElement.classList.add("level-up");
+          setTimeout(() => levelElement.classList.remove("level-up"), 1000);
+          updateLevelDisplay();
+          setTimeout(newRound, 2000);
+        } else {
+          result.textContent = "Incorrect. Starting over!";
+          resetGame();
+        }
+      }
+
+      function setupMixedSelection() {
+        const substep = document.getElementById("substep");
+        substep.innerHTML =
+          "<p>Select the waveforms you think are in the mix:</p>";
+
+        waveforms.forEach((waveform) => {
+          const button = document.createElement("button");
+          button.textContent = waveform;
+          button.onclick = () => toggleMixedSelection(waveform, button);
+          substep.appendChild(button);
+        });
+
+        document.getElementById("confirm").style.display = "block";
+      }
+
+      function toggleMixedSelection(waveform, button) {
+        if (mixedSelections.includes(waveform)) {
+          mixedSelections = mixedSelections.filter((w) => w !== waveform);
+          button.classList.remove("correct");
+        } else {
+          mixedSelections.push(waveform);
+          button.classList.add("correct");
+        }
+      }
+
+      function confirmMixedGuess() {
+        const substepButtons = document.querySelectorAll("#substep button");
+        const result = document.getElementById("result");
+        const waveformResult = document.getElementById("waveformResult");
+        const playButton = document.getElementById("playSound");
+        playButton.classList.add("disabled");
+        playButton.disabled = true;
+
+        let correctCount = 0;
+
+        substepButtons.forEach((button) => {
+          if (
+            currentWaveform.includes(button.textContent) &&
+            mixedSelections.includes(button.textContent)
+          ) {
+            button.classList.add("correct");
+            correctCount++;
+          } else if (mixedSelections.includes(button.textContent)) {
+            button.classList.add("incorrect");
+          }
+        });
+
+        waveformResult.textContent =
+          currentWaveform.length === 1
+            ? currentWaveform[0]
+            : `Mixed: ${currentWaveform.join(", ")}`;
+
+        if (
+          correctCount === currentWaveform.length &&
+          mixedSelections.length === currentWaveform.length
+        ) {
+          result.textContent = "Correct!";
+          level++;
+          const levelElement = document.getElementById("level");
+          levelElement.classList.add("level-up");
+          setTimeout(() => levelElement.classList.remove("level-up"), 1000);
+          updateLevelDisplay();
+          setTimeout(newRound, 2000);
+        } else {
+          result.textContent = "Incorrect. Starting over!";
+          resetGame();
+        }
+      }
+
+      document.getElementById("playSound").addEventListener("click", () => {
+        playSound(currentWaveform);
+      });
+
+      document.getElementById("replaySound").addEventListener("click", () => {
+        playSound(currentWaveform);
+      });
+
+      updateLevelDisplay();
+      newRound();
+    </script>
+  </body>
+</html>
